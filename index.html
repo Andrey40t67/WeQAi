@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Генерация изображений AI</title>
+    <style>
+        body {
+            background-color: #1a1a1a;
+            color: white;
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            flex-direction: column;
+            overflow: hidden;
+            margin: 0;
+        }
+
+        h1 {
+            color: #ff4d4d;
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+        }
+
+        .container {
+            background-color: #2d2d2d;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.7);
+            width: 80%;
+            max-width: 600px;
+        }
+
+        input, button {
+            padding: 15px;
+            margin: 10px 0;
+            width: 100%;
+            font-size: 1rem;
+            border-radius: 8px;
+            border: 2px solid #ff4d4d;
+            background-color: #333;
+            color: white;
+        }
+
+        input:focus, button:focus {
+            outline: none;
+            border-color: #ff5733;
+        }
+
+        button {
+            background-color: #ff4d4d;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #cc0000;
+        }
+
+        .message {
+            font-size: 1.2rem;
+            color: #ffcc00;
+            margin-top: 20px;
+        }
+
+        #generatedImage {
+            width: 100%;
+            max-width: 500px;
+            margin-top: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container" id="codeForm">
+        <h1>Генерация изображений AI</h1>
+        <p>Введите код для доступа:</p>
+        <input type="text" id="codeInput" placeholder="Введите код">
+        <button onclick="checkCode()">Отправить</button>
+        <p id="message" class="message"></p>
+    </div>
+
+    <div class="container" id="generateForm" style="display:none;">
+        <h1>Генерация изображения</h1>
+        <input type="text" id="imagePrompt" placeholder="Введите описание изображения">
+        <button onclick="generateImage()">Генерировать изображение</button>
+        <p id="imageMessage" class="message"></p>
+    </div>
+
+    <div id="imageContainer" style="display:none;">
+        <img id="generatedImage" src="" alt="Сгенерированное изображение">
+    </div>
+
+    <script>
+        const correctCode = '2914'; // Код для доступа
+        const apiKey = 'F69B5867A11FBB606B48C7AEB2425365'; // Ваш API ключ
+        const secretKey = '1213D433CE28CF6142D550329E21261B'; // Ваш секретный ключ
+        const apiUrl = 'https://api-key.fusionbrain.ai/key/api/v1/text2image/run'; // URL для генерации изображения
+
+        // Проверка правильности кода
+        function checkCode() {
+            const userCode = document.getElementById('codeInput').value;
+            const messageElement = document.getElementById('message');
+
+            if (userCode === correctCode) {
+                messageElement.style.color = '#28a745';
+                messageElement.innerHTML = 'Код правильный! Перейдем к генерации изображений.';
+                document.getElementById('codeForm').style.display = 'none';
+                document.getElementById('generateForm').style.display = 'block';
+            } else {
+                messageElement.style.color = '#dc3545';
+                messageElement.innerHTML = 'Неверный код! Попробуйте снова.';
+            }
+        }
+
+        // Генерация изображения по запросу
+        async function generateImage() {
+            const prompt = document.getElementById('imagePrompt').value;
+            const messageElement = document.getElementById('imageMessage');
+
+            if (!prompt) {
+                messageElement.style.color = '#dc3545';
+                messageElement.innerHTML = 'Введите описание изображения.';
+                return;
+            }
+
+            messageElement.style.color = '#ffcc00';
+            messageElement.innerHTML = 'Генерация изображения...';
+
+            try {
+                console.log('Отправка запроса...');
+                // Отправка запроса на сервер с API ключом и секретным ключом
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Key': `Key ${apiKey}`, // API ключ
+                        'X-Secret': `Secret ${secretKey}`, // Секретный ключ
+                    },
+                    body: JSON.stringify({
+                        type: "GENERATE",
+                        numImages: 1,
+                        width: 1024,
+                        height: 1024,
+                        generateParams: {
+                            query: prompt
+                        }
+                    }),
+                });
+
+                // Логирование ответа от API для отладки
+                const data = await response.json();
+                console.log('Ответ от API:', data);
+
+                // Проверка на ошибки в ответе
+                if (data.error) {
+                    messageElement.style.color = '#dc3545';
+                    messageElement.innerHTML = `Ошибка от API: ${data.error.message}`;
+                    return;
+                }
+
+                if (data && data.uuid) {
+                    // Проверка статуса выполнения запроса
+                    const imageStatus = await checkGenerationStatus(data.uuid);
+                    if (imageStatus && imageStatus.images && imageStatus.images[0]) {
+                        const imageUrl = imageStatus.images[0]; // Получаем URL изображения
+
+                        // Отображение сгенерированного изображения
+                        const imageContainer = document.getElementById('imageContainer');
+                        const generatedImage = document.getElementById('generatedImage');
+                        generatedImage.src = imageUrl;
+                        imageContainer.style.display = 'block';
+                    } else {
+                        messageElement.style.color = '#dc3545';
+                        messageElement.innerHTML = 'Не удалось получить изображение.';
+                    }
+                } else {
+                    messageElement.style.color = '#dc3545';
+                    messageElement.innerHTML = 'Не удалось получить UUID для генерации изображения.';
+                }
+            } catch (error) {
+                console.error('Ошибка при запросе:', error);
+                messageElement.style.color = '#dc3545';
+                messageElement.innerHTML = 'Произошла ошибка при генерации изображения.';
+            }
+        }
+
+        // Проверка статуса генерации
+        async function checkGenerationStatus(uuid) {
+            try {
+                const statusResponse = await fetch(`https://api-key.fusionbrain.ai/key/api/v1/text2image/status/${uuid}`, {
+                    method: 'GET',
+                    headers: {
+                        'X-Key': `Key ${apiKey}`, // API ключ
+                        'X-Secret': `Secret ${secretKey}`, // Секретный ключ
+                    }
+                });
+                const statusData = await statusResponse.json();
+                console.log('Статус генерации:', statusData);
+                return statusData;
+            } catch (error) {
+                console.error('Ошибка при проверке статуса:', error);
+            }
+        }
+    </script>
+
+</body>
+</html>
